@@ -30,3 +30,11 @@ This was a small experiment (n=270) that I would consider more of a trial or tes
 - GPT-4-Turbo takes roughly x2 longer than GPT-4o and GPT-4o-mini to generate a response but it does perform better on the evaluations.
 - The editor evaluator (receives the question content with the blank filled in) is both time and cost efficient for finding inaccurate questions.
 - 2 prompts provided an incorrect example for the requested grammatical concept (ex: the prompt topic is the dative case and the one-shot example is for accusative). This confused the model during question generation and evaluation. The model does not have the opportunity to push back against the contradictory input because the output is constrained to a specific JSON schema.
+
+## Experiment 2: Output Mode Comparision ([full report](reports/e02_output_mode_comparison.md))
+
+Another small experiment (n=330) with some take-aways:
+
+- Structured output of all modes is great and 100% of requests have successfully parsed as valid JSON.
+- Schema mode is 30% faster than prompt_only and json_mode.
+- Claude Sonnet 4.6 is good at querying the database and writing reports. However, Claude first concluded confidently that schema mode hurts correctness. I pressed Claude on this and reminded it that n is small. On a second look, Claude found the accuracy issue was isolated to a single generation request and had an explaination with the one-shot example.
