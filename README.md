@@ -1,5 +1,7 @@
 # LLM Language Quiz Experiments
 
+## Background
+
 **TL;DR: I deployed an LLM-powered vocabulary acquisition tool and learned some lessons about LLM content generation. To better understand how to get the most out of LLMs, I'm taking a more structured/data-driven approach with experiments.**
 
 To better enjoy content (books and TV shows) in Spanish, I regularly invested time in studying vocabulary. My process was: when I found a word I didn't know I would add it to a spaced repetition flashcard deck and review them on a daily basis (well... not 100% daily). Spaced repetition flashcards work great and their effectiveness is backed by research, but I have found some pain points in long-term use:
@@ -48,3 +50,26 @@ Detailed reports:
 
 - [Comparing Different Local Model Architectures](reports/e03_local_model_comparison.md)
 - [Comparing Qwen3.5 sizes and quantization](reports/e04_qwen35_quantization_comparison.md)
+
+## Fill-in-the-Blank Across Frontier and Local Models
+
+Evaluated open fill-in-the-blank questions (open as in no multiple choice options are given) across local and Frontier models.
+
+- Distractor quality is the primary concern with multiple choice questions and it's no surprise that the dominant FITB failure mode is answer ambiguity from underspecified subjects ("sie" singular, formal and plural).
+- Using an all-pass metric (question must pass all four evaluators), Claude Sonnet 4.6 scored 98%, Claude Haiku 4.5 scored 89%, GPT-4.1 scored 83%, and the local Qwen models scored 66% (8-bit) and 48% (4-bit).
+- In both samples for Futur I, Qwen3.5-9B-4bit formed questions with "Konjunktiv II" instead of Präsens. This mistake was not present in the 8-bit model which suggests that quantization induced this effect.
+
+Detailed report:
+
+- [Fill-in-the-Blank Model Comparison](reports/e06_fill_in_the_blank_model_comparison.md)
+
+## Future experiment ideas
+
+- Affect of large context (few-shot vs textbook section vs entire textbook)
+- Out-of-the-box performance of reasoning models
+- Out-of-the-box performance of models with self-correction
+- Performance of finetuned models with desired output
+  - Requires a curated dataset
+- Performmace of reasoning models finetuned with CoT reasoning
+  - Requires a curated dataset
+- Language performance carryover of finetuning in a single language
