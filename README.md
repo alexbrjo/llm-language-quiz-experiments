@@ -63,9 +63,21 @@ Detailed report:
 
 - [Fill-in-the-Blank Model Comparison](reports/e06_fill_in_the_blank_model_comparison.md)
 
+## Grammar Context Injection
+
+Held the model constant (Qwen3.5-9B-4bit) and varied how much context was injected in the prompt. I used 8 groups that spanned from no context to a compressed textbook. All prompts used the same instructions.
+
+- Few-shot examples (3 per topic) and an LLM-compressed full textbook tied for best performance at ~68% all-pass. This is not directly comparable to previous experiments, but it is a notable improvement over the 48% all pass for the same model in the last experiment.
+- Many question generation failure modes are reasoning problems (word order, finding and handling ambiguity) that context alone cannot fix. The model needs to be better at multi-hop reasoning.
+- Section-level textbook context did not even outperform a simple 1-shot example. LLM compression hurt at section scale but helped dramatically at full-textbook scale.
+- The focus was on correctness; Inference time and content diversity were not compared.
+
+Detailed report:
+
+- [Grammar Context Injection](reports/e07_grammar_context_injection.md)
+
 ## Future experiment ideas
 
-- Affect of large context (few-shot vs textbook section vs entire textbook)
 - Out-of-the-box performance of reasoning models
 - Out-of-the-box performance of models with self-correction
 - Performance of finetuned models with desired output
