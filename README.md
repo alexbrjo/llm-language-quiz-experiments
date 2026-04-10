@@ -65,9 +65,9 @@ Detailed report:
 
 ## Grammar Context Injection
 
-These experiments try to improve correctness of smaller models by injecting additional content to the prompt. This is increasingly feasible with small models supporting large contexts.
+These experiments try to improve correctness of smaller models by injecting additional content to the prompt. This is increasingly feasible method with small models supporting large contexts.
 
-- Injected content can improve Qwen3.5-9B-4bit grammatical accuracy in German: few-shot examples (3 per topic) and an LLM-compressed full textbook tied at ~68% passing-all-evals. While not directly comparable, it is a notable improvement over the 48% passing-all-evals for the same model in e06.
+- No method of content injection has consistently improved the grammatical accuracy of Qwen3.5-9B-4bit generated German quiz questions.
 - Many question generation failure modes are reasoning problems (word order, finding and handling ambiguity) that context alone cannot fix. The model needs to be better at multi-hop reasoning.
 - Unprocessed grammatical content injection, both static and dynamic (RAG/vector database), has shown little evidence of improving content quality. And with a small model, poorly matched content can degrade output through context contamination and topic drift.
 

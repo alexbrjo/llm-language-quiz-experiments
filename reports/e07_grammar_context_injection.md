@@ -1,15 +1,17 @@
-# E07: Grammar Context Injection for Question Generation
+# E07: Textbook Context Injection Strategies
 
-**Experiment:** e07
-**Date:** 2026-04-02
+**Experiment:** e07 (rerun)
+**Date:** 2026-04-10
 **Model:** `mlx-community/Qwen3.5-9B-MLX-4bit` (local, MLX adapter)
-**LLM Judge:** `gpt-4o` (temperature 0.1, json_mode)
+**LLM Judge:** `gpt-4o`
 
 ---
 
 ## Abstract
 
-This experiment held the generation model constant and varied the grammar knowledge injected into the prompt. Eight conditions spanned from a bare topic label (no-shot) to a full textbook compressed into the prompt. A total of 2,145 fill-in-the-blank questions were generated across all conditions and evaluated by a 4-evaluator pipeline (Static, Editor, Student, Teacher). The two best-performing conditions were **LLM-compressed full textbook (68.2% all-pass)** and **few-shot examples (67.0%)**, both substantially outperforming the no-shot baseline (28.2%). Surprisingly, section-level textbook context (conditions 4-6) did not clearly outperform a simple 1-shot example, while the full LLM-compressed textbook dramatically outperformed the full rule-compressed textbook (68.2% vs 47.4%). Notably, the best context injection condition (68.2%) exceeded the 4-bit model's e06 score of 48% by 20 points and approximately matched the 8-bit model's e06 score of 66%.
+This experiment evaluates whether injecting textbook content into a 1-shot prompt improves fill-in-the-blank German grammar question quality on a small local model. Six conditions were tested, all sharing the same 1-shot example per topic, varying only in what additional textbook content was injected: none (control), raw textbook section, rule-compressed section, LLM-compressed section, rule-compressed full textbook (~100k tokens), and LLM-compressed full textbook (~20k tokens). A total of 1,528 questions were generated across all conditions and evaluated by a 4-evaluator pipeline. **No textbook injection condition meaningfully outperformed the 1-shot control (54.2% all-pass).** The best-performing condition, LLM-compressed section (58.0%), exceeded the control by 3.8 points — within the margin of statistical noise for these sample sizes. All five textbook conditions clustered in a tight 3.8-point range (54.5% to 58.0%), and both full-textbook conditions (55.3% and 56.1%) performed indistinguishably from their section-level counterparts despite injecting 5-40x more content. The primary finding is that unstructured or structurally-processed textbook content, regardless of scope or compression method, provides no detectable quality improvement over a single well-chosen example for this model. Failure modes were dominated by multi-word answer format mismatches, evaluator errors, and a handful of topics (Wechselpräpositionen, Passiv im Präsens, Konjugation im Perfekt) that the model struggled with regardless of injected context.
+
+**Note on experimental history.** A previous run of e07 tested 8 conditions, several of which lacked the 1-shot example. The inconsistent baselines made the results difficult to interpret. This rerun holds the 1-shot example constant across all conditions so that differences reflect the value of textbook injection alone. A concurrent condition with hand-curated few-shot examples was also run and scored 70.6% all-pass; because few-shot examples introduce frontier-model-curated pedagogical content rather than raw textbook material, they represent a different experimental variable and are omitted from this report to keep the ablation clean. Section 5 briefly contextualizes the few-shot result.
 
 ---
 
@@ -23,39 +25,46 @@ This experiment held the generation model constant and varied the grammar knowle
 | Adapter                | MLX (local Apple Silicon inference)           |
 | Output Mode            | `json_schema` (Outlines)                      |
 | Max Tokens             | 1024                                          |
-| Temperature            | default                                       |
+| Temperature            | 0.3                                           |
+| Thinking mode          | Disabled (`enable_thinking=False`)            |
 | Questions per sample   | 5                                             |
 
 ### 1.2 Conditions
 
-| # | Condition                   | Context Injected                                                    |
-|---|----------------------------|---------------------------------------------------------------------|
-| 1 | No-shot                    | Topic label only                                                    |
-| 2 | 1-shot                     | Topic label + 1 example question with answer                        |
-| 3 | Few-shot                   | Topic label + 3-5 example questions                                 |
-| 4 | Raw textbook section       | Relevant chapter, unprocessed                                       |
-| 5 | LLM-compressed section     | Chapter distilled by LLM into concise grammar rules                 |
-| 6 | Rule-compressed section    | Chapter with exercises/dialogues stripped programmatically           |
-| 7 | LLM-compressed full        | All grammar rules across all topics, LLM-distilled (~20k tokens)    |
-| 8 | Rule-compressed full       | Full textbook with exercises/dialogues stripped (~100k tokens)       |
+All conditions include an identical 1-shot example question per topic. They differ only in what additional textbook content is injected into the prompt.
 
-Conditions 1-6 used a shared prompt template with per-condition data files. Conditions 7-8 used dedicated prompt templates with the full textbook baked directly into the template text.
+| # | Condition | Textbook Content Injected |
+|---|-----------|---------------------------|
+| 1 | 1-shot control           | None                                                                |
+| 2 | Raw section              | The relevant textbook section, unprocessed                          |
+| 3 | Rule-compressed section  | The relevant section with exercise lines stripped programmatically  |
+| 4 | LLM-compressed section   | The relevant section distilled by an LLM into concise grammar rules |
+| 5 | Rule-compressed full     | The entire textbook with exercises stripped (~100k tokens)          |
+| 6 | LLM-compressed full      | All grammar rules across all topics, LLM-distilled (~20k tokens)    |
 
-### 1.3 Sampling
+Conditions 1-4 used a shared prompt template with per-condition data files. Conditions 5-6 used dedicated prompt templates with the full textbook baked directly into the template text and the 1-shot example injected via data file variables.
 
-- **Strategy:** Exhaustive (all topics per repeat)
-- **Repeats:** 3
-- **Topics:** Up to 20 per condition (topic coverage varied by data file)
-- **Samples generated:** 60 per condition (480 total)
+### 1.3 Textbook Source and Section Alignment
 
-### 1.4 Evaluators
+The source material was a 300-page CC-licensed German grammar textbook, extracted to markdown via marker-pdf. For section-level conditions (2-4), the correct textbook section had to be identified for each of the 20 grammar topics. Topics were mapped to sections manually, verified against the textbook's table of contents.
 
-| Evaluator | Type     | Purpose                                                     |
-|-----------|----------|-------------------------------------------------------------|
-| Static    | Rules    | Structural validation (answer, explanation, blank present)  |
-| Editor    | gpt-4o   | Grammatical correctness of the answered sentence            |
-| Student   | gpt-4o   | Model attempts to produce the correct answer                |
-| Teacher   | gpt-4o   | Model sees the entire question content                      |
+Of the 20 topics, 19 have dedicated or clearly-aligned sections in the textbook. **Negation mit "nicht" und "kein"** has no dedicated section; the closest available content (the "Ein-Words" section, which covers "kein" as an indefinite article variant) was used but does not address "nicht" placement. Several topics share sections because the textbook doesn't separate them: all three Adjektivdeklination cases share the "Adjective Endings" section, both Personalpronomen topics share "Pronouns (All Cases)", and both case-specific Präpositionen topics share the "Prepositions" section. These imperfections were left in place as a best-effort test of how content injection behaves with realistic, imperfect source data — the kind practitioners would actually encounter when pointing RAG or static injection at an existing corpus.
+
+### 1.4 Sampling
+
+- **Strategy:** Exhaustive (all topics per pass)
+- **Passes:** 3
+- **Topics:** 20 per condition
+- **Samples generated:** 60 per condition (360 total)
+
+### 1.5 Evaluators
+
+| Evaluator | Type     | Purpose                                                              |
+|-----------|----------|----------------------------------------------------------------------|
+| Static    | Rules    | Structural validation (answer, explanation, blank present)           |
+| Editor    | gpt-4o   | Grammatical correctness of the answered sentence                     |
+| Student   | gpt-4o   | Simulated student attempts to produce the correct answer             |
+| Teacher   | gpt-4o   | Expert audit of question quality, answer correctness, topic alignment|
 
 A question passed the **all-pass** criterion only if it passed all four evaluators.
 
@@ -65,282 +74,260 @@ A question passed the **all-pass** criterion only if it passed all four evaluato
 
 ### 2.1 Overall Results
 
-| # | Condition                   |   N | All-Pass |  Rate | Static | Editor | Student | Teacher |
-|---|----------------------------|----:|---------:|------:|-------:|-------:|--------:|--------:|
-| 1 | No-shot                    | 255 |       72 | 28.2% | 100.0% |  67.1% |   52.5% |   51.8% |
-| 2 | 1-shot                     | 240 |      120 | 50.0% | 100.0% |  82.5% |   70.0% |   65.0% |
-| 3 | Few-shot                   | 285 |      191 | 67.0% | 100.0% |  82.1% |   81.1% |   76.1% |
-| 4 | Raw textbook section       | 285 |      144 | 50.5% |  98.9% |  80.0% |   62.5% |   70.5% |
-| 5 | LLM-compressed section     | 255 |       86 | 33.7% | 100.0% |  72.2% |   61.6% |   64.7% |
-| 6 | Rule-compressed section    | 285 |      146 | 51.2% |  98.9% |  81.1% |   65.3% |   71.6% |
-| 7 | LLM-compressed full        | 255 |      174 | 68.2% | 100.0% |  80.0% |   78.4% |   80.8% |
-| 8 | Rule-compressed full       | 285 |      135 | 47.4% | 100.0% |  80.0% |   67.4% |   74.4% |
+| # | Condition               |   N | All-Pass |  Rate | Static | Editor | Student | Teacher |
+|---|-------------------------|----:|---------:|------:|-------:|-------:|--------:|--------:|
+| 1 | 1-shot control          | 225 |      122 | 54.2% |  99.6% |  76.9% |   67.1% |   79.1% |
+| 2 | Raw section             | 233 |      127 | 54.5% |  99.6% |  76.4% |   73.4% |   78.1% |
+| 3 | Rule-compressed section | 260 |      144 | 55.4% |  99.6% |  71.9% |   71.5% |   82.3% |
+| 4 | LLM-compressed section  | 250 |      145 | 58.0% | 100.0% |  79.6% |   73.6% |   85.6% |
+| 5 | Rule-compressed full    | 285 |      160 | 56.1% |  96.5% |  71.6% |   76.1% |   84.6% |
+| 6 | LLM-compressed full     | 275 |      152 | 55.3% |  96.4% |  78.2% |   71.3% |   82.2% |
 
 **Ranking by all-pass rate:**
-1. Cond 7 — LLM-compressed full textbook: **68.2%**
-2. Cond 3 — Few-shot: **67.0%**
-3. Cond 6 — Rule-compressed section: **51.2%**
-4. Cond 4 — Raw textbook section: **50.5%**
-5. Cond 2 — 1-shot: **50.0%**
-6. Cond 8 — Rule-compressed full: **47.4%**
-7. Cond 5 — LLM-compressed section: **33.7%**
-8. Cond 1 — No-shot: **28.2%**
+1. LLM-compressed section: **58.0%**
+2. Rule-compressed full: **56.1%**
+3. Rule-compressed section: **55.4%**
+4. LLM-compressed full: **55.3%**
+5. Raw section: **54.5%**
+6. 1-shot control: **54.2%**
 
-### 2.2 Question Yield
+The entire range from best to worst spans 3.8 percentage points. The 95% confidence intervals on the individual rates and on the between-condition differences are both wide enough to contain zero:
 
-Not all conditions produced the expected 300 questions (60 samples x 5 questions/sample). Some data files covered fewer than 20 topics, and some samples yielded fewer than 5 extractable questions.
+| Condition                | Rate  | 95% CI |
+|--------------------------|:-----:|:------:|
+| 1-shot control           | 54.2% |  ±6.5  |
+| Raw section              | 54.5% |  ±6.4  |
+| Rule-compressed section  | 55.4% |  ±6.0  |
+| LLM-compressed section   | 58.0% |  ±6.1  |
+| Rule-compressed full     | 56.1% |  ±5.8  |
+| LLM-compressed full      | 55.3% |  ±5.9  |
 
-| Condition | Expected | Actual | Yield  | Topics Covered |
-|-----------|----------|--------|--------|----------------|
-| 1         | 300      | 255    | 85.0%  | 17             |
-| 2         | 300      | 240    | 80.0%  | 16             |
-| 3         | 300      | 285    | 95.0%  | 19             |
-| 4         | 300      | 285    | 95.0%  | 19             |
-| 5         | 300      | 255    | 85.0%  | 17             |
-| 6         | 300      | 285    | 95.0%  | 19             |
-| 7         | 300      | 255    | 85.0%  | 17             |
-| 8         | 300      | 285    | 95.0%  | 19             |
+Individual CIs are computed as `1.96 * sqrt(p*(1-p)/n)`. For the largest observed gap (LLM-compressed section 58.0% vs 1-shot control 54.2%, +3.8 points), the 95% CI of the difference is `1.96 * sqrt(p1*(1-p1)/n1 + p2*(1-p2)/n2) = ±8.9` points, which easily contains zero. A two-proportion z-test gives z = 0.83, p ≈ 0.41 — nowhere near significance. No condition is statistically distinguishable from the control or from any other condition.
 
-Total questions generated: **2,145** across all conditions.
+### 2.2 By Scope
+
+| Scope      | Conditions                                    | Avg All-Pass |
+|------------|-----------------------------------------------|:------------:|
+| No textbook| 1-shot control                                |   54.2%      |
+| Section    | Raw, rule-compressed, LLM-compressed section  |   56.0%      |
+| Full text  | Rule-compressed full, LLM-compressed full     |   55.7%      |
+
+Section-level and full-textbook injection produced essentially identical averages, despite full-textbook conditions injecting 5-40x more content. This suggests the additional content in the full-textbook conditions provided no useful signal that wasn't already available in the focused section.
+
+### 2.3 By Compression Method
+
+Holding scope constant, compare LLM-compression vs rule-compression:
+
+| Scope   | LLM-Compressed | Rule-Compressed | Delta |
+|---------|---------------:|----------------:|------:|
+| Section | 58.0%          | 55.4%           | +2.6  |
+| Full    | 55.3%          | 56.1%           | -0.8  |
+
+LLM compression did not consistently outperform rule compression. At section scope, LLM compression was slightly ahead (+2.6 points, 95% CI of difference ±8.6). At full-textbook scope, LLM compression was slightly behind (-0.8 points, 95% CI of difference ±8.2). Both observed differences are well within the noise floor.
+
+### 2.4 Question Yield
+
+Each condition ran 60 samples (3 passes × 20 topics) requesting 5 questions per sample, for an expected yield of 300 questions per condition.
+
+| Condition               | Samples | Expected | Generated | Yield |
+|-------------------------|--------:|---------:|----------:|------:|
+| 1-shot control          |      60 |      300 |       225 | 75.0% |
+| Raw section             |      60 |      300 |       233 | 77.7% |
+| Rule-compressed section |      60 |      300 |       260 | 86.7% |
+| LLM-compressed section  |      60 |      300 |       250 | 83.3% |
+| Rule-compressed full    |      60 |      300 |       285 | 95.0% |
+| LLM-compressed full     |      60 |      300 |       275 | 91.7% |
+
+Total questions evaluated: **1,528**.
+
+Full-textbook conditions had noticeably higher yield (91.7-95.0%) than the control (75.0%). This is a confound worth flagging: higher-yield conditions may include lower-quality marginal questions that raise N without raising the pass count proportionally. If the full-textbook conditions had the same yield as the control, their all-pass rates might look slightly better in absolute terms — but since they underperform even at inflated N, the conclusion holds.
+
+### 2.5 Generation Statistics
+
+| Condition               | Avg Prompt Tokens | Avg Latency |
+|-------------------------|------------------:|------------:|
+| 1-shot control          |               413 |       12.6s |
+| Raw section             |             1,563 |       15.0s |
+| Rule-compressed section |             1,439 |       14.9s |
+| LLM-compressed section  |             1,163 |       14.1s |
+| LLM-compressed full     |             7,579 |       29.9s |
+| Rule-compressed full    |            46,421 |      140.1s |
+
+Rule-compressed full textbook conditions used ~112x more prompt tokens and were ~11x slower than the control, for zero quality improvement. The latency numbers reflect uncached prompts — in a production setting, the full-textbook portion of the prompt would be static across samples and could be served from a prompt cache (KV cache on local inference, or provider-side caching on hosted APIs), dramatically reducing per-sample latency after the first call. Token counts are unaffected by caching, but compute/latency costs can be amortized. Even with prompt caching, however, the quality remains unchanged — the injected content is not useful signal regardless of how cheaply it can be served.
 
 ---
 
 ## 3. Per-Topic Analysis
 
-All-pass rates per topic, ordered by average performance. `--` indicates the topic was not present in that condition's data file.
+All-pass rates by topic and condition. With n=5-15 per topic per condition, individual cells are noisy; focus on patterns across rows.
 
-| Topic                                    |   C1 |   C2 |   C3 |   C4 |   C5 |   C6 |   C7 |   C8 |
-|------------------------------------------|-----:|-----:|-----:|-----:|-----:|-----:|-----:|-----:|
-| Personalpronomen in Akkusativ            |  33% | 100% | 100% | 100% |   -- | 100% |  80% |  67% |
-| Adjektivdeklination im Nominativ         |  60% |  87% |  80% |  93% |  40% |  87% |  93% | 100% |
-| Relativpronomen                          |  80% |  73% | 100% |  40% |  87% |  20% |  67% |  87% |
-| Futur I                                  |   0% |  60% |  80% |  60% |  80% |  60% | 100% | 100% |
-| Adjektivdeklination im Dativ             |   0% |  20% |  40% |  80% |  87% |  80% | 100% |  73% |
-| Adjektivdeklination im Akkusativ         |  60% |  20% |  80% | 100% |  20% | 100% |  40% |  53% |
-| Konjugation im Präsens                   |  60% |  60% |  60% |  60% |  60% |  60% | 100% |  80% |
-| Nebensätze mit weil, dass, obwohl        |   7% |   -- |  53% |  47% |   -- |  60% | 100% |  60% |
-| Konjugation im Präteritum                |  27% |  60% |  73% |  93% |  47% |  93% |  53% |  53% |
-| Reflexivpronomen im Akkusativ und Dativ  |  60% |  20% |  80% |  40% |   0% |  40% |  20% |   -- |
-| Personalpronomen in Dativ                |  27% |  60% |  67% |  40% |  40% |  40% | 100% |  40% |
-| Hilfsverb in Perfekt                     |   -- |  60% |  80% |  40% |   7% |  40% |   -- |  33% |
-| Negation mit "nicht" und "kein"          |  20% |  53% |  40% |   0% |  20% |   0% |  80% |   0% |
-| Artikelbestimmung (der/die/das)          |   0% |   -- |  80% |  80% |   0% |  80% | 100% |   0% |
-| Präpositionen mit Akkusativ              |   0% |   -- |  60% |  60% |  60% |  60% |  53% |  33% |
-| Konjunktiv II (Höflichkeitsform)         |   0% |  40% |   -- |  20% |  13% |  20% |  47% |  33% |
-| Konjugation im Perfekt                   |   -- |  20% |  80% |   7% |   7% |  20% |   -- |  20% |
-| Passiv im Präsens                        |  20% |  47% |   0% |   -- |   7% |   -- |   -- |  40% |
-| Wechselpräpositionen                     |  27% |  20% |  93% |   0% |   0% |   0% |   0% |   0% |
-| Präpositionen mit Dativ                  |   -- |   -- |  27% |   0% |   -- |  13% |  27% |  27% |
+| Topic                                              | Ctrl | Raw  | Rule-S | LLM-S | Rule-F | LLM-F |
+|----------------------------------------------------|-----:|-----:|-------:|------:|-------:|------:|
+| Adjektivdeklination im Nominativ                   |  80% |  70% |    53% |   87% |    73% |   67% |
+| Adjektivdeklination im Akkusativ                   |  53% |  70% |    67% |   80% |    40% |   73% |
+| Adjektivdeklination im Dativ                       |  67% |  62% |    87% |   53% |    93% |   87% |
+| Artikelbestimmung (der/die/das)                    | 100% |  80% |    73% |   67% |    67% |   20% |
+| Futur I                                            |  67% |  67% |    80% |   80% |    93% |   67% |
+| Hilfsverb in Perfekt                               |  80% |  60% |    47% |   53% |    60% |   50% |
+| Konjugation im Perfekt                             |  20% |   0% |     7% |    0% |    10% |   20% |
+| Konjugation im Präsens                             |  90% |  87% |    87% |  100% |    80% |   93% |
+| Konjugation im Präteritum                          |  53% |  60% |    87% |   87% |    60% |   67% |
+| Konjunktiv II (Höflichkeitsform)                   |  60% |  47% |    40% |   40% |    20% |   53% |
+| Nebensätze mit "weil", "dass", "obwohl"            |  20% |   -- |    70% |   80% |    53% |   60% |
+| Negation mit "nicht" und "kein"                    |  80% |   7% |     0% |   30% |   100% |  100% |
+| Passiv im Präsens                                  |  20% |   0% |     0% |   20% |     0% |    0% |
+| Personalpronomen in Akkusativ                      |  53% |  73% |    87% |   50% |    67% |   87% |
+| Personalpronomen in Dativ                          |  67% |  73% |    40% |   47% |    40% |   47% |
+| Präpositionen mit Akkusativ                        |  20% |  80% |   100% |   73% |    67% |   33% |
+| Präpositionen mit Dativ                            |   -- |  20% |    60% |   80% |    40% |   27% |
+| Reflexivpronomen im Akkusativ und Dativ            |  40% |  53% |    40% |   60% |    33% |   50% |
+| Relativpronomen                                    |  87% |  73% |    67% |   80% |    93% |   53% |
+| Wechselpräpositionen (Akkusativ vs. Dativ)         |   0% |   7% |     0% |    0% |     0% |    0% |
 
-### 3.1 Key Observations by Topic
+### 3.1 Topics Where the Model Struggles Regardless of Context
 
-**Consistently easy topics** (>60% across most conditions):
-- **Personalpronomen in Akkusativ** — Straightforward substitution pattern. Reached 100% in most conditions with any context.
-- **Adjektivdeklination im Nominativ** — Common grammar pattern that the model handled well even without context.
+Three topics scored consistently low across all conditions, indicating topic-specific failure modes unrelated to the model's grammatical knowledge:
 
-**Topics where context helps most** (large gap between C1 and best):
-- **Futur I** — 0% no-shot to 100% with full LLM-compressed context. The no-shot model produced multi-word answers ("werde kaufen") but placed them incorrectly in the sentence, creating word-order failures.
-- **Adjektivdeklination im Dativ** — 0% no-shot to 100% in C7. The model struggled with dative adjective endings without explicit paradigm tables.
-- **Nebensätze** — 7% no-shot to 100% in C7. Word order in subordinate clauses is a complex rule that benefited from explicit reference.
+- **Wechselpräpositionen (Akkusativ vs. Dativ):** 0-7% across all conditions. The model generates reasonable-looking questions with the correct case reasoning in the explanation, but the student evaluator consistently answers with just the article instead of the preposition+article contraction expected by the answer key (e.g., expects "im", student says "den"). This is a format mismatch between how the question model produces multi-word answers and how the student model parses them.
+- **Passiv im Präsens:** 0-20% across all conditions. The Editor evaluator frequently flags the answered sentences for unnatural word order. German passive voice with a prepositional agent phrase ("Das Haus wird gebaut von den Arbeitern") tends to be ungrammatical in the placement the model generates — the agent phrase should typically come before the participle or the sentence should be restructured.
+- **Konjugation im Perfekt:** 0-20% across all conditions. The model frequently generates questions where the auxiliary verb is in the blank but the expected answer is ambiguous between including or excluding the participle. Similar multi-word answer issue to Wechselpräpositionen.
 
-**Topics that remain hard across all conditions:**
-- **Wechselpräpositionen** — 93% in few-shot (C3) but 0% in all textbook conditions (C4-C8). The textbook context may have confused the model with competing rules for accusative vs. dative.
-- **Konjugation im Perfekt** — Below 20% in most conditions except few-shot (80%). The model frequently produced incorrect past participles.
-- **Präpositionen mit Dativ** — Below 30% everywhere. Complex preposition-case mappings were poorly handled even with explicit rules.
+These are topic-specific failure modes that context injection does not address. They represent inherent limitations of the fill-in-the-blank format for certain German grammar constructions rather than knowledge gaps.
+
+### 3.2 Topics Where Context Injection Showed Movement
+
+- **Negation mit "nicht" und "kein":** Highly variable (0-100%) across conditions. Raw and rule-compressed section both scored ~0-7% because the aligned section ("Ein-Words") covers "kein" as an indefinite article variant but does not address "nicht" placement — the model, following the retrieved content, generated "kein"-focused questions when "nicht" questions were expected. Full-textbook conditions reached 100% because they had access to content from elsewhere in the textbook covering "nicht" usage. This topic illustrates the cost of incomplete textbook coverage.
+- **Präpositionen mit Dativ:** The control had no valid items for this topic (model failed to produce extractable questions without explicit case lists), while section conditions scored 20-80%. The raw/rule-compressed section included the full preposition table, which gave the model the necessary reference to generate case-appropriate questions.
+- **Nebensätze mit weil, dass, obwohl:** Jumped from 20% (control) to 70-80% (section conditions). The control produced broken questions that mixed conjunction choice with word-order rules. Section conditions included the "Conjunctions" textbook section with clear rules, which helped the model produce focused questions.
+
+These three topics are where textbook injection showed a meaningful, interpretable benefit. In each case, the model's baseline knowledge was weakest and the textbook content filled a specific gap.
+
+### 3.3 Regression to the Mean in Per-Topic Data
+
+Most apparent topic-level differences across conditions are within the range expected from sampling noise. With n=5-15 per topic, a shift of 20-30 percentage points can occur by chance. Topics that scored unusually high or low in one condition tend to regress toward the population mean in other conditions. The patterns in sections 3.1 and 3.2 were identified as real because they appear consistently across multiple conditions, not because a single cell differs from another.
 
 ---
 
 ## 4. Failure Mode Analysis
 
-### 4.1 Failure Patterns
+### 4.1 Failure Pattern Distribution
 
-A question could fail one or more of the three LLM evaluators (Static passed at 98.9-100% and was not a significant failure source). The failure pattern distribution:
+A question could fail one or more of the four evaluators. Across all 1,528 questions, 678 (44.4%) failed at least one evaluator. The pattern distribution:
 
-| Pattern                        | Count | % of Failures | Description |
-|--------------------------------|------:|:-------------:|-------------|
-| Student only                   |   305 |         28.3% | Question was correct, but the simulated student gave a different answer |
-| Editor + Student + Teacher     |   231 |         21.4% | Fundamental correctness issue — wrong answer, wrong grammar, wrong word order |
-| Teacher only                   |   198 |         18.4% | Question was grammatically correct but Teacher flagged topic mismatch or explanation quality |
-| Editor + Teacher               |   122 |         11.3% | Answer was grammatically wrong, Teacher also flagged it |
-| Student + Teacher              |   101 |          9.4% | Teacher and Student both disagreed with the provided answer |
-| Editor + Student               |    62 |          5.8% | Grammar error that prevented the student from arriving at the expected answer |
-| Editor only                    |    52 |          4.8% | Minor grammar issue (e.g., preposition choice) but Student and Teacher still passed |
-| Static only                    |     6 |          0.6% | Structural issue (missing field) |
+| Pattern                          | Count | % of Failures |
+|----------------------------------|------:|:-------------:|
+| Student only                     |   131 |     19.3%     |
+| Editor only                      |   128 |     18.9%     |
+| Editor + Student                 |   127 |     18.7%     |
+| Teacher only                     |    96 |     14.2%     |
+| Editor + Student + Teacher       |    90 |     13.3%     |
+| Student + Teacher                |    60 |      8.8%     |
+| Editor + Teacher                 |    23 |      3.4%     |
+| Static + Student                 |    11 |      1.6%     |
+| Static only                      |     5 |      0.7%     |
+| Other combinations               |     7 |      1.0%     |
 
-**Total failures:** 1,077 / 2,145 questions (50.2%)
+**Interpretation:**
+- **Student-only failures (19.3%)** are usually evaluator-side format mismatches (the student's answer differs from the expected answer in scope or form, not correctness).
+- **Editor-only failures (18.9%)** flag grammatically awkward sentences that still have a correct answer.
+- **Editor + Student failures (18.7%)** catch answers that are wrong — the sentence is ungrammatical and the student arrives at a different answer.
+- **Triple failures (Editor + Student + Teacher, 13.3%)** are the most reliable indicator of fundamentally incorrect output.
 
-**Note on evaluator reliability:** The evaluators used gpt-4o, which is not ground truth. Some failures — particularly Student-only and Teacher-only rejections — may have been evaluator errors rather than genuine generation defects. E05 found that at high quality levels, a meaningful fraction of Teacher rejections were false negatives. The triple-failure pattern (Editor + Student + Teacher) is the most reliable indicator of genuine correctness issues, as three independent evaluators agreeing on failure is unlikely to be coincidental.
+### 4.2 Malformed Questions with Multi-Word Answers
 
-### 4.2 Failure Category: Genuine Correctness Errors (Triple Failures)
+A large fraction of Student failures trace back to questions where the blank position and hint do not cleanly match the expected multi-word answer. Examples:
 
-231 questions (21.4% of failures) failed all three LLM evaluators, indicating fundamentally incorrect output. These fell into three subcategories:
+> Topic: Wechselpräpositionen
+> Q: `Ich suche meine Schlüssel _____ (der) Schrank.`
+> Expected: `im` | Student answered: `den`
 
-**A. Word order errors (Futur I, Nebensätze)**
-The model generated multi-word answers (e.g., "werde kaufen") that, when inserted into the blank, produced incorrect word order. In German, the infinitive in Futur I must go to the end of the clause, but the model's answered sentence placed it in the middle:
+The blank sits directly before the noun and the hint is "(der)", which reads as asking for an article. The expected answer, however, is the preposition+article contraction "im" (= "in dem"). The student reasonably interpreted the blank as an article slot and produced "den". The question is malformed — the blank position and hint don't accommodate the intended answer.
 
-> Q: `Ich _____ (kaufen) morgen ein neues Buch.`
-> A: `werde kaufen`
-> Answered: `Ich werde kaufen morgen ein neues Buch.` (wrong)
-> Correct: `Ich werde morgen ein neues Buch kaufen.`
+> Topic: Passiv im Präsens
+> Q: `Der Brief _____ (schreiben) vom Lehrer.`
+> Expected: `wird geschrieben` | Student answered: `werden`
 
-This is a structural problem with FITB format for multi-word answers — the blank position cannot accommodate verb-final word order.
+The hint "(schreiben)" is the infinitive of the main verb, but the expected answer is the full passive construction (auxiliary + participle). The student produced the auxiliary "werden" because that's the only word form the blank could plausibly hold given the hint. Again, the question construction doesn't support its own expected answer.
 
-**B. Wrong declension/conjugation**
-The model provided an incorrect grammatical form as the answer, with the correct form as the hint (ideally the hint is the base form):
+These are question-generation failures, not evaluator errors or knowledge gaps. The model is producing questions for multi-word German constructions where the standard fill-in-the-blank format (single blank + single-word hint) can't encode the intended answer. They would be addressed by format changes (explicit multi-word blanks, separate slots for auxiliary and participle, multiple choice) rather than more context.
 
-> Q: `Das Kind trinkt das _____ (kalte) Wasser.`
-> A: `kalten` (wrong — should be `kalte` for accusative neuter with definite article)
+### 4.3 Passive Voice Word Order
 
-> Q: `Der Lehrer liest _____ (alte) Geschichten den Kindern vor.`
-> A: `alten` (wrong — `Geschichten` is accusative plural, needs `alte`)
+Passive voice conditions produced consistent Editor failures for sentences like:
 
-**C. Topic-misaligned questions**
-Questions that tested a different grammar point than the stated topic:
+> `Das Haus wird gebaut von den Arbeitern.`
 
-> Topic: Adjektivdeklination im Nominativ
-> Q: `Ich habe einen _____ (rot) Ball gekauft.`
-> A: `roten`
-> (Actually tested accusative, not nominative)
+The Editor evaluator flagged these as grammatically correct but with unnatural word order. The preferred German construction places the agent phrase before the participle:
 
-### 4.3 Failure Category: Student Disagreements (305 cases)
+> `Das Haus wird von den Arbeitern gebaut.`
 
-The largest failure category: the Student evaluator produced a different answer than expected. Two subcategories:
+The model consistently generated the less natural word order regardless of injected context. This is a generation quality issue, not an evaluator error.
 
-**A. Student evaluator errors**
-The Student evaluator (which did not see the topic label) sometimes gave an incorrect answer, producing a false negative. For example:
+### 4.4 Topic Drift from Misaligned Sections
 
-> Q: `Die _____ (schön) Blumen duften stark.`
-> Expected: `schönen` | Student answered: `schöne`
-
-`schönen` is unambiguously correct — plural nominative with definite article requires the weak ending -en. The Student's answer was wrong, making this an evaluator error rather than a generation defect.
-
-**B. Poorly-constructed blanks**
-Some questions, especially for Artikelbestimmung, placed the wrong word in the blank:
-
-> Q: `Der _____ (Hund) bellt laut auf dem Hof.`
-> Expected: `Hund` | Student answered: `der`
-
-The model produced a question where the blank was the noun itself (already visible in the hint), not the article. The student reasonably filled in the article instead. This pattern accounted for most Artikelbestimmung failures.
-
-### 4.4 Failure Category: Teacher-Only Rejections (198 cases)
-
-Questions that passed Editor and Student but were rejected by Teacher, usually for:
-
-- **Explanation quality:** The answer was correct but the explanation cited the wrong rule
-- **Topic mismatch:** The question tested a valid grammar point but not the one specified
-- **Contextual awkwardness:** The sentence was grammatically correct but pragmatically odd ("Ich sehe mich jeden Tag" — syntactically valid but semantically unusual)
+The Negation topic illustrates what happens when the aligned textbook section doesn't match the topic label. The best available section was "Ein-Words" (covering "kein" as a possessive/indefinite article variant), which has no content on "nicht" placement. In raw and rule-compressed section conditions, the model produced questions focused on "kein" when "nicht" was the intended test. Full-textbook conditions, which had access to incidental "nicht" usage from other sections, scored dramatically better (100%) on this topic. The result is counterintuitive: injecting more (and less targeted) content helped more than injecting focused (but narrow) content, because the "focused" content was missing the relevant information.
 
 ---
 
-## 5. Comparison to E06 Baseline
+## 5. Context on the Few-Shot Condition
 
-E06 tested Qwen3.5-9B-MLX-4bit under a 1-shot prompt and measured 48% all-pass. E07's Condition 2 (1-shot) scored 50.0%. These were broadly consistent, though not directly comparable — the prompt template, data files, topic set, and sample size differed between experiments. The comparison is directional, not exact.
+A condition using 6 hand-curated few-shot examples per topic (generated by Claude Opus) was run alongside the textbook conditions. It scored **70.6% all-pass** — a 16-point improvement over the 1-shot control. This result is excluded from the main analysis because few-shot examples represent a different experimental variable (high-quality pedagogical content curated by a frontier model) rather than a variant of textbook processing. Including it would conflate "does textbook injection help?" with "does curated example content help?" — two questions with different answers that should be tested separately.
 
-E06 concluded that the 4-bit model's "local model quality ceiling is 66%" (the 8-bit score) and that 48% "is not viable for production use." E07 challenged both claims:
-
-| Configuration                     | All-Pass | Source |
-|-----------------------------------|---------|--------|
-| Qwen3.5-9B-4bit, 1-shot (e06)    |    48%  | e06    |
-| Qwen3.5-9B-8bit, 1-shot (e06)    |    66%  | e06    |
-| Qwen3.5-9B-4bit, 1-shot (e07 C2) |    50%  | e07    |
-| Qwen3.5-9B-4bit, few-shot (e07 C3) |  67%  | e07    |
-| Qwen3.5-9B-4bit, LLM-full (e07 C7) | 68%  | e07    |
-
-Context injection appeared to recover quality in a similar range to what quantization lost, though the cross-experiment comparison is approximate (different prompts, data files, and sample sizes). The directional finding — that prompt-side knowledge augmentation can partially compensate for model capacity — holds, but the exact magnitude should not be over-interpreted.
-
-E06 identified three failure modes specific to the 4-bit model: incorrect declension endings, topic misalignment, and hint quality issues. Context injection partially addressed these:
-- **Declension errors** were reduced in C3 and C7 (paradigm tables in context helped the model pick correct endings)
-- **Topic misalignment** persisted — some questions still tested the wrong grammar point regardless of context
-- **Hint quality** (using inflected forms instead of base forms as hints) was not systematically measured in e07 but appeared less frequently in manual spot-checks of C7 output
+The directional finding is: curated pedagogical content from a stronger model helps substantially, while unstructured textbook content from the source material does not. This is consistent with the broader pattern observed in e08 (RAG with retrieved textbook chunks also failed to improve over the 1-shot control).
 
 ---
 
-## 6. Condition Comparison (Within E07)
+## 6. Cost Analysis
 
-### 6.1 Example-Based vs. Textbook-Based Context
+Given that no textbook injection condition meaningfully improved quality, the cost differences between conditions become purely overhead:
 
-| Approach                | Best Condition      | All-Pass |
-|-------------------------|--------------------|---------:|
-| Example-based (C1-C3)   | Few-shot (C3)      |    67.0% |
-| Section textbook (C4-C6)| Rule-compressed (C6)|   51.2% |
-| Full textbook (C7-C8)   | LLM-compressed (C7)|   68.2% |
+| Condition               | Avg Prompt Tokens | Latency | Cost Ratio (vs control) |
+|-------------------------|------------------:|--------:|:-----------------------:|
+| 1-shot control          |               413 |   12.6s | 1.0x                    |
+| LLM-compressed section  |             1,163 |   14.1s | 2.8x                    |
+| Rule-compressed section |             1,439 |   14.9s | 3.5x                    |
+| Raw section             |             1,563 |   15.0s | 3.8x                    |
+| LLM-compressed full     |             7,579 |   29.9s | 18.4x                   |
+| Rule-compressed full    |            46,421 |  140.1s | 112.4x                  |
 
-Few-shot examples and the full LLM-compressed textbook tied for best performance, both roughly doubling the no-shot baseline. Paradoxically, section-level textbook context (the focused, topic-specific approach) did not outperform a simple 1-shot example. This contradicted the intuition that focused context should be more useful than either broad context or few examples.
-
-### 6.2 LLM Compression vs. Rule Compression
-
-| Scope   | LLM-Compressed | Rule-Compressed | Delta |
-|---------|---------------:|----------------:|------:|
-| Section | 33.7% (C5)     | 51.2% (C6)      | -17.5 |
-| Full    | 68.2% (C7)     | 47.4% (C8)      | +20.8 |
-
-LLM compression produced opposite effects at different scales:
-- **Section level:** LLM compression *hurt* — C5 (33.7%) was worse than C6 (51.2%) and even worse than C1 no-shot for some topics. The LLM may have over-compressed single-chapter content, losing critical paradigm tables.
-- **Full textbook level:** LLM compression *helped dramatically* — C7 (68.2%) was 20.8 points above C8 (47.4%). At full-textbook scale, the LLM effectively synthesized cross-chapter rules into a coherent reference, while the rule-compressed full textbook (~100k tokens) may have overwhelmed the model's attention.
-
-### 6.3 Context Volume vs. Quality
-
-The relationship between prompt context size and quality was non-monotonic:
-
-| Context Size   | Condition(s)     | All-Pass |
-|----------------|------------------|---------:|
-| ~10 tokens     | C1 (no-shot)     |    28.2% |
-| ~80 tokens     | C2 (1-shot)      |    50.0% |
-| ~250-400 tokens| C3 (few-shot)    |    67.0% |
-| ~500-1.5k      | C5 (LLM section) |    33.7% |
-| ~1-3k          | C6 (rule section)|    51.2% |
-| ~2-5k          | C4 (raw section) |    50.5% |
-| ~20k           | C7 (LLM full)    |    68.2% |
-| ~100k          | C8 (rule full)   |    47.4% |
-
-Quality peaked at two points: (1) at ~250-400 tokens with well-crafted few-shot examples, and (2) at ~20k tokens with LLM-compressed full-textbook context. Larger raw context (~100k) degraded performance relative to the LLM-compressed version, suggesting that for this model, context quality mattered more than volume.
+The rule-compressed full textbook condition used over 100x the tokens of the control for the same quality. Section-level conditions used 3-4x more tokens for no measurable benefit. In production, none of these tradeoffs would be justified.
 
 ---
 
-## 7. Hypothesis Evaluation
+## 7. Limitations
 
-| # | Hypothesis | Result |
-|---|-----------|--------|
-| H1 | 1-shot significantly outperforms no-shot | **Confirmed.** 50.0% vs 28.2% (+21.8 points) |
-| H2 | Few-shot outperforms 1-shot with diminishing returns | **Confirmed.** 67.0% vs 50.0% (+17.0 points) |
-| H3 | LLM-compressed section matches or beats raw section | **Rejected.** LLM-compressed section (33.7%) was the worst non-baseline condition. Over-compression at section level. |
-| H4 | Section-level context outperforms full-textbook context | **Rejected.** Full LLM-compressed (68.2%) beat all section-level conditions. Broad context won over focused context. |
-| H5 | Context injection shows larger gains on harder topics | **Mixed.** Some hard topics (Futur I, Nebensätze) showed large gains; others (Wechselpräpositionen, Präpositionen mit Dativ) remained hard regardless. |
-| H6 | No condition significantly reduces ambiguity failures | **Confirmed.** Student-only failures were the largest category across all conditions. |
-| H7 | LLM-compressed section is the optimal cost-quality tradeoff | **Rejected.** Few-shot (C3) achieved similar quality with much less preparation cost. |
+1. **Single model.** Results are specific to Qwen3.5-9B-MLX-4bit. A weaker model might benefit more from explicit context; a stronger model might already handle most cases without needing it.
 
----
+2. **Limited sample size per topic.** With n=5-15 per topic per condition, individual topic rates are noisy and most cross-condition differences within a topic are within sampling variance.
 
-## 8. Limitations
+3. **Textbook coverage gaps.** One topic (Negation mit nicht und kein) has no dedicated section in the source textbook. This affects section-level conditions' coverage of that topic but not the control or full-textbook conditions.
 
-1. **Unequal topic coverage.** Not all 20 topics appeared in every condition's data file (topic coverage ranged from 16 to 19). This made direct per-topic comparisons across conditions imperfect for topics with missing conditions.
+4. **Shared sections across topics.** The experiment's topics don't map exactly to chapters in the source textbook (e.g., all three Adjektivdeklination cases share one section, both Personalpronomen topics share one section). This means some topic pairs retrieved identical content for section-level conditions, reducing the effective number of independent comparisons.
 
-2. **Question yield varied.** Conditions produced 240-285 questions instead of the expected 300, due to incomplete topic coverage and some samples producing fewer than 5 extractable questions.
+5. **Evaluator false negatives.** The Student evaluator produced format mismatches that were counted as failures even when the student's reasoning was correct. This penalizes all conditions equally but inflates the absolute failure rate. True quality rates are likely higher than the reported all-pass numbers.
 
-3. **Multi-word answer problem.** The FITB format inherently struggles with answers that are multi-word (e.g., "werde kaufen" for Futur I), because simple blank substitution breaks German word order. This disproportionately penalized conditions that produced more multi-word answers.
+6. **Yield variance.** Full-textbook conditions generated more questions per sample than the control (91-95% vs 75%), which may mean they included lower-quality marginal questions that wouldn't have been generated in lower-yield conditions. This would tend to depress their all-pass rates relative to a yield-matched comparison.
 
-4. **Student evaluator without topic.** The Student evaluator did not see the grammar topic being tested. This made it a stronger test of question quality (a good question should be answerable without knowing the topic), but also meant correct questions with subtle grammar points could fail if the student applied a different rule.
-
-5. **Evaluator false negatives.** As noted in e05, at moderate-to-high quality levels, a meaningful fraction of Teacher rejections were evaluator errors rather than genuine model failures. Some Teacher-only rejections (198 cases) likely included false negatives.
-
-6. **Single model.** Results are specific to Qwen3.5-9B-MLX-4bit. A more capable model might show different sensitivity to context injection. Conversely, a weaker model might benefit more from explicit context.
+7. **Fill-in-the-blank format limitation.** The FITB format struggles with multi-word German answers (verb-infinitive pairs in Futur I, preposition+article contractions in Wechselpräpositionen, auxiliary+participle in passive voice). Addressing these would require either prompting the model to avoid multi-word answers, reworking the output format to support multi-word blanks, or using a more capable model that can reason about blank placement and answer scope consistently.
 
 ---
 
-## 9. Conclusions
+## 8. Conclusions
 
-1. **Context injection worked, but the form mattered more than the volume.** The two best conditions — few-shot examples (67.0%) and LLM-compressed full textbook (68.2%) — used very different amounts of context but both presented grammar knowledge in a well-structured, directly actionable format. Raw or programmatically-stripped textbook content at any scale performed worse.
+1. **Textbook content injection did not improve over a 1-shot example for this model.** All six conditions (1-shot control and five textbook variants) clustered in a 3.8-point range (54.2% to 58.0%), which is within sampling noise.
 
-2. **Few-shot examples were the best cost-quality tradeoff.** At 67.0% all-pass with ~250-400 tokens of context, few-shot provided nearly the same quality as the LLM-compressed full textbook (68.2% at ~20k tokens) with far less preparation effort and faster inference.
+2. **Compression method (LLM vs rule) did not matter.** At both section and full-textbook scope, LLM-compressed and rule-compressed variants performed equivalently. The LLM compression work done to prepare these files added no measurable value.
 
-3. **LLM compression scaled well but not down.** At full-textbook scale, LLM compression produced the best single condition. At section scale, it produced the second-worst condition. The LLM appeared to be better at synthesizing broad knowledge than at summarizing narrow content.
+3. **Scope (section vs full) did not matter.** Full-textbook conditions, despite injecting 5-40x more content, performed no better than section-level conditions. More context was not more useful context.
 
-4. **Many failures were reasoning problems, not knowledge problems.** Multi-word answers with broken word order, topic-misaligned blanks, and ambiguous sentences accounted for a large share of failures. These required the model to reason about German syntax and self-verify its output — capabilities that context injection alone cannot provide. A more capable model (as e06 showed with Claude Sonnet at 98%) handled these cases correctly, suggesting that the remaining 30% failure rate was bounded by the model's reasoning capacity rather than by what was in the prompt.
+4. **The largest-context condition was the worst cost-quality tradeoff.** Rule-compressed full textbook used ~112x more tokens and ~11x more latency than the control for zero quality improvement.
 
-5. **Context injection may partially compensate for quantization.** The 4-bit model with few-shot or LLM-compressed full context (67-68% all-pass) reached a similar range to the 8-bit model's e06 baseline (66%), though the experiments were not directly comparable (different prompts, data, sample sizes). The directional finding suggests that with the right prompt, the 4-bit model can be competitive with the 8-bit model at lower memory cost.
+5. **Topic-specific failure modes dominate.** Three topics (Wechselpräpositionen, Passiv im Präsens, Konjugation im Perfekt) scored consistently low across all conditions due to format limitations of fill-in-the-blank questions for multi-word German answers. These failure modes are not addressable by context injection.
 
-6. **Recommended local model configuration:** Few-shot (Condition 3) with 3-5 hand-crafted examples per topic. If full-textbook context is available and latency is acceptable, LLM-compressed full textbook (Condition 7) provided a marginal additional benefit. Note that even the best local model configuration (68.2%) remained far below API models — Claude Sonnet 4.6 achieved 98% all-pass in e06 with 1-shot prompting.
+6. **Textbook coverage matters more than retrieval or compression strategy.** The one case where full-textbook conditions dramatically outperformed section conditions (Negation, 100% vs 0-30%) was driven by a topic that had no dedicated section in the textbook. This suggests that ensuring source material actually covers the target topics is more important than how the content is segmented or compressed.
+
+7. **Directional observation on curated examples.** The concurrent few-shot condition (70.6% with 6 hand-curated examples), while excluded from this experiment's main analysis, points to curated example content as a lever worth investigating separately. Unprocessed textbook content and frontier-model-curated examples are two distinct interventions; this experiment rules out the former but does not assess the latter.
 
 ---
 
-_Written by Claude Opus 4.6 using data generated by LLMContentForge. Generation model: Qwen3.5-9B-MLX-4bit (local). LLM judge model (Editor, Student, Teacher evaluators): gpt-4o._
+_Written by Claude Opus 4.6. Reviewed by Alexander Johnson and Claude Opus 4.6. Generation model: Qwen3.5-9B-MLX-4bit (local). LLM judge (Editor, Student, Teacher evaluators): gpt-4o._
