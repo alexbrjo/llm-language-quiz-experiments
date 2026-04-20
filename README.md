@@ -56,12 +56,12 @@ Detailed reports:
 Evaluated open fill-in-the-blank questions (open as in no multiple choice options are given) across local and Frontier models.
 
 - Distractor quality is the primary concern with multiple choice questions and it's no surprise that the dominant FITB failure mode is answer ambiguity from underspecified subjects ("sie" singular, formal and plural).
-- Using an all-pass metric (question must pass all four evaluators), Claude Sonnet 4.6 scored 98%, Claude Haiku 4.5 scored 89%, GPT-4.1 scored 83%, and the local Qwen models scored 66% (8-bit) and 48% (4-bit).
-- In both samples for Futur I, Qwen3.5-9B-4bit formed questions with "Konjunktiv II" instead of Präsens. This mistake was not present in the 8-bit model which suggests that quantization induced this effect.
+- The Gemma 4 family meaningfully outperformed older edge models of the same size (+20%), and Gemma 4 26B MoE outperformed Sonnet 4.6 (by 9%). This was a limited benchmark, so I wouldn't go so far as to say "Gemma 4 26 MoE is better at writing German grammar questions than Sonnet 4.6". However, it is a signal of how small OSS models are quickly improving in performance.
 
-Detailed report:
+Detailed reports:
 
 - [Fill-in-the-Blank Model Comparison](reports/e06_fill_in_the_blank_model_comparison.md)
+- [Comparison with the Gemma 4 model family](reports/e09_edge_model_fitb_comparison.md)
 
 ## Grammar Context Injection
 
