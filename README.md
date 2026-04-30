@@ -76,6 +76,19 @@ Detailed reports:
 - [Grammar Context Injection](reports/e07_grammar_context_injection.md)
 - [RAG chunking strategies](reports/e08_rag_chunking_strategies.md)
 
+
+## Edge-model flashcard generation for German verbs
+
+This was a comparison of 5 phone-sized edge models (1.2 - 4.4 GB) on their ability to generate accurate flashcards. 
+
+- Edge models might be accurate enough at translation to be useful. Across 600 cards every model scored ≥94% on the translation rubric. This is not surprising since translation is a big part of any model's pretraining mix, but should be taken with a grain of salt because this experiment was performed with the 100 most common German verbs. It's very possible quality would degrade once uncommon vocabulary is used, and this is super important for a learner trying to learn vocabulary.
+- Edge models struggle with classifying and conjugating a base verb, even the 100 most common German verbs. Memorizing separability, irregular forms and partizip II are important for German language learners, and the current generation of edge models are not accurate enough for this task.
+- Qwen3.5 4B performs the best of the edge models (44/100 cards passed all 4 eval gates), well behind Claude Haiku 4.5 as a frontier reference (89/100). With a better prompt/eval it's possible Qwen3.5 4B is usable for a flash card generation task.
+
+Detailed report:
+
+- [Edge Model Verb Card Generation](reports/e10_edge_model_verb_card_comparison.md)
+
 ## Future experiment ideas
 
 - Out-of-the-box performance of reasoning models
